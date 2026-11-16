@@ -103,6 +103,9 @@ class StructuredOutputsParams:
     choice: list[str] | None = None
     grammar: str | None = None
     json_object: bool | None = None
+    # Opt-in scheme-3 input: an immutable, prepared mixed Grammar handle.
+    # The engine must not reinterpret this as source EBNF or JSON Schema.
+    serialized_grammar_handle: str | None = None
     # These are other options that can be set.
     disable_any_whitespace: bool = False
     disable_additional_properties: bool = False
@@ -124,8 +127,19 @@ class StructuredOutputsParams:
                 self.grammar is not None,
                 self.json_object is not None,
                 self.structural_tag is not None,
+                self.serialized_grammar_handle is not None,
             ]
         )
+        if self.serialized_grammar_handle is not None:
+            if count != 1 or not isinstance(self.serialized_grammar_handle, str):
+                raise VLLMValidationError(
+                    "serialized_grammar_handle must be the only constraint "
+                    "and must be a nonempty string"
+                )
+            if not self.serialized_grammar_handle:
+                raise VLLMValidationError(
+                    "serialized_grammar_handle must be a nonempty string"
+                )
         if count > 1:
             raise VLLMValidationError(
                 "You can only use one kind of structured outputs constraint "
@@ -148,6 +162,7 @@ class StructuredOutputsParams:
                 "grammar",
                 "json_object",
                 "structural_tag",
+                "serialized_grammar_handle",
             )
         )
 
@@ -161,6 +176,7 @@ class StructuredOutputsParams:
                 "choice",
                 "grammar",
                 "json_object",
+                "serialized_grammar_handle",
             )
         )
 
@@ -905,6 +921,14 @@ class SamplingParams(
         structured_outputs_config: StructuredOutputsConfig | None,
         tokenizer: TokenizerLike | None,
     ) -> None:
+        if (
+            speculative_config is not None
+            and self.structured_outputs is not None
+            and self.structured_outputs.serialized_grammar_handle is not None
+        ):
+            raise VLLMValidationError(
+                "Serialized mixed grammars do not yet support speculative decoding"
+            )
         self._validate_logprobs(model_config)
         self._validate_logit_bias(model_config)
         self._validate_trace_replay(model_config, speculative_config)
@@ -1221,7 +1245,13 @@ class SamplingParams(
         structured_outputs_config: StructuredOutputsConfig | None,
         tokenizer: TokenizerLike | None,
     ) -> None:
-        if structured_outputs_config is None or self.structured_outputs is None:
+        if self.structured_outputs is None:
+            return
+        if structured_outputs_config is None:
+            if self.structured_outputs.serialized_grammar_handle is not None:
+                raise VLLMValidationError(
+                    "Serialized mixed grammars require an explicit xgrammar backend"
+                )
             return
 
         if model_config.is_diffusion:
@@ -1242,6 +1272,59 @@ class SamplingParams(
             )
 
         backend = structured_outputs_config.backend
+        handle = self.structured_outputs.serialized_grammar_handle
+        is_mixed_tokenizer = getattr(tokenizer, "mixed", None) is not None
+        if handle is not None or is_mixed_tokenizer:
+            # Validate before native source parsing or the auto-fallback chain.
+            # The source schema and private byte map stay at the trusted frontend.
+            if backend != "xgrammar" or handle is None or not is_mixed_tokenizer:
+                raise VLLMValidationError(
+                    "Mixed tokenizers require a serialized grammar handle "
+                    "and the explicit xgrammar backend"
+                )
+            if structured_outputs_config.reasoning_parser:
+                raise VLLMValidationError(
+                    "Serialized mixed grammars do not yet support reasoning parsers"
+                )
+            if (
+                self.ignore_eos
+                or self.min_tokens != 0
+                or self.stop
+                or self.stop_token_ids
+                or self.allowed_token_ids is not None
+                or self.bad_words
+                or self.logit_bias
+                or self.extra_args
+                or self.logprobs is not None
+                or self.prompt_logprobs is not None
+                or self.logprob_token_ids is not None
+                or self.prompt_logprob_token_ids is not None
+                or self.thinking_token_budget is not None
+                or self.structured_outputs.disable_any_whitespace
+                or self.structured_outputs.disable_additional_properties
+                or self.structured_outputs.whitespace_pattern is not None
+            ):
+                raise VLLMValidationError(
+                    "Sampling or grammar options are outside the mixed Grammar "
+                    "capability set"
+                )
+            if self.structured_outputs._backend not in (None, "xgrammar"):
+                raise VLLMValidationError(
+                    "Serialized mixed grammars cannot change the request backend"
+                )
+            try:
+                from mixed_tokenizer.grammar_runtime import validate_mixed_handle
+
+                validate_mixed_handle(tokenizer, handle)
+            except (ImportError, OSError, ValueError, RuntimeError) as err:
+                # Do not echo an untrusted payload, source text, or private path.
+                raise VLLMValidationError(
+                    "Invalid or unavailable serialized mixed grammar"
+                ) from err
+            self.structured_outputs._backend = "xgrammar"
+            self.structured_outputs._backend_was_auto = False
+            self.structured_outputs.__post_init__()
+            return
         if _backend := self.structured_outputs._backend:
             # Request-level backend selection is not supported.
             # The values may differ if `params` is reused and was set

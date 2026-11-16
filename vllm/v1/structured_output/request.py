@@ -72,6 +72,11 @@ class StructuredOutputRequest:
 
 
 def get_structured_output_key(params: StructuredOutputsParams) -> StructuredOutputKey:
+    if params.serialized_grammar_handle is not None:
+        return (
+            StructuredOutputOptions.SERIALIZED_GRAMMAR,
+            params.serialized_grammar_handle,
+        )
     if params.json is not None:
         if not isinstance(params.json, str):
             json_str = json.dumps(params.json)

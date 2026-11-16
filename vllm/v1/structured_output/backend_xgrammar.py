@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
 import json
+import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -43,6 +44,20 @@ class XgrammarBackend(StructuredOutputBackend):
             model_config is not None and model_config.hf_config.model_type == "plamo3"
         )
 
+        self._mixed_byte_mode = getattr(self.tokenizer, "mixed", None) is not None
+        if self._mixed_byte_mode:
+            if self.vllm_config.speculative_config is not None:
+                raise ValueError("Mixed Grammar speculative decoding is unsupported")
+            if self.vllm_config.structured_outputs_config.reasoning_parser:
+                raise ValueError("Mixed Grammar reasoning parsers are unsupported")
+            from mixed_tokenizer.grammar_runtime import MixedGrammarCompiler
+
+            # This compiler imports the frozen mixed TokenizerInfo and accepts
+            # only registered handles. It never loads source schema or a byte map.
+            self.compiler = MixedGrammarCompiler(self.tokenizer, self.vocab_size)
+            self.num_speculative_tokens = 0
+            return
+
         if is_mistral_tokenizer(self.tokenizer):
             # NOTE: ideally, xgrammar should handle this accordingly.
             # refer to https://github.com/mlc-ai/xgrammar/blob/d77c0a0173ef14779c918e3be7966ba852f7910f/python/xgrammar/tokenizer_info.py#L98
@@ -70,10 +85,13 @@ class XgrammarBackend(StructuredOutputBackend):
                 self.tokenizer,
                 vocab_size=self.vocab_size,
             )
+        # The differential harness opts into the approved single-thread,
+        # cache-disabled reference. Native deployments keep their defaults.
+        reference_mode = os.environ.get("MIXED_GRAMMAR_REFERENCE") == "1"
         self.compiler = xgr.GrammarCompiler(
             tokenizer_info,
-            max_threads=8,
-            cache_enabled=True,
+            max_threads=1 if reference_mode else 8,
+            cache_enabled=not reference_mode,
             cache_limit_bytes=vllm.envs.VLLM_XGRAMMAR_CACHE_MB * 1024 * 1024,
         )
 
@@ -108,7 +126,16 @@ class XgrammarBackend(StructuredOutputBackend):
         # and will be available in next release.
         # So, remove this comment once xgrammar updates to v0.2.9
         separators = (",", ":") if self.disable_any_whitespace else None
-        if request_type == StructuredOutputOptions.JSON:
+        if self._mixed_byte_mode:
+            if request_type != StructuredOutputOptions.SERIALIZED_GRAMMAR:
+                raise ValueError("Mixed Grammar backend accepts prepared handles only")
+            expected_stops = set(self.tokenizer.mixed.control_ids["generation_eos"])
+            if set(stop_token_ids or ()) != expected_stops:
+                raise ValueError("Mixed Grammar engine stop-token binding mismatch")
+            ctx = self.compiler.compile_handle(grammar_spec)
+        elif request_type == StructuredOutputOptions.SERIALIZED_GRAMMAR:
+            raise ValueError("Serialized mixed Grammar requires a mixed tokenizer")
+        elif request_type == StructuredOutputOptions.JSON:
             ctx = self.compiler.compile_json_schema(
                 grammar_spec,
                 any_whitespace=not self.disable_any_whitespace,

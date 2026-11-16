@@ -23,6 +23,7 @@ class StructuredOutputOptions(enum.Enum):
     GRAMMAR = enum.auto()
     CHOICE = enum.auto()
     STRUCTURAL_TAG = enum.auto()
+    SERIALIZED_GRAMMAR = enum.auto()
 
 
 StructuredOutputKey = tuple[StructuredOutputOptions, str]
