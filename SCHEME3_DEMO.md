@@ -16,13 +16,13 @@ The runtime also needs the `mixed_tokenizer` package and the modified XGrammar f
 
 ## Design and validation
 
-The companion project is [vllm-mixed-tokenizer-demo](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/tree/demo/schema3); access to that private repository is required. The approved T04 implementation is fixed by its `demo-t04-optimized` tag.
+The companion project is [vllm-mixed-tokenizer-demo](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/tree/demo/scheme3); access to that private repository is required. The approved T04 implementation is fixed by its `demo-t04-optimized` tag.
 
-- [Handoff and pinned versions](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/blob/demo/schema3/docs/T04_HANDOFF.md)
-- [Module map](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/blob/demo/schema3/docs/SYSTEM_MODULE_MAP.md)
-- [Bridge contract tests](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/blob/demo/schema3/tests/test_task03_vllm_bridge.py)
-- [Complete T04 regression driver](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/blob/demo/schema3/scripts/run_task04opt_regression.py)
-- [Approved regression evidence](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/blob/demo/schema3/docs/results/task04opt/review-manifest.json)
+- [Handoff and pinned versions](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/blob/demo/scheme3/docs/T04_HANDOFF.md)
+- [Module map](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/blob/demo/scheme3/docs/SYSTEM_MODULE_MAP.md)
+- [Bridge contract tests](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/blob/demo/scheme3/tests/test_task03_vllm_bridge.py)
+- [Complete T04 regression driver](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/blob/demo/scheme3/scripts/run_task04opt_regression.py)
+- [Approved regression evidence](https://github.com/Catherine-Chu/vllm-mixed-tokenizer-demo/blob/demo/scheme3/docs/results/task04opt/review-manifest.json)
 
 The approved run passed 219 unit tests, 180 real-model HTTP functional requests and 82 lifecycle calls according to their expected-success/rejection/disconnection contracts. Validation used a local CPU and a fixed random one-block model with the full target vocabulary. Formal 27B weights, 910B3, MTP and device asynchronous model scheduling were not validated by this run. The recent T04 performance changes reside in the companion package, not in new vLLM patches.
 
