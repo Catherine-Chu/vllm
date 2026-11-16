@@ -12,7 +12,7 @@ The grammar integration is a separate commit from the historical CPU fallback fi
 - `vllm/v1/structured_output/backend_xgrammar.py`: delegating mixed compilation to the external package while retaining the native matcher and stop behavior.
 - `vllm/utils/cpu_triton_utils.py`: a separately committed, historical CPU fallback argument binding and unused-slot PAD fix; not an Ascend adaptation.
 
-The runtime also needs the `mixed_tokenizer` package and the modified XGrammar from [demo/schema3-grammar](https://github.com/Catherine-Chu/xgrammar/tree/demo/schema3-grammar). This branch alone does not provide the offline tokenizer or Grammar artifact builder.
+The runtime also needs the `mixed_tokenizer` package and the modified XGrammar from [demo/scheme3-grammar](https://github.com/Catherine-Chu/xgrammar/tree/demo/scheme3-grammar). This branch alone does not provide the offline tokenizer or Grammar artifact builder.
 
 ## Design and validation
 
