@@ -487,6 +487,7 @@ class EngineArgs:
     tokenizer_mode: TokenizerMode | str = ModelConfig.tokenizer_mode
     enable_tokenizer_obfuscation: bool | None = None
     tokenizer_obfuscation_artifacts: str | None = None
+    tokenizer_obfuscation_debug_ti_validation: bool = False
     trust_remote_code: bool = ModelConfig.trust_remote_code
     allowed_local_media_path: str = ModelConfig.allowed_local_media_path
     allowed_media_domains: list[str] | None = ModelConfig.allowed_media_domains
@@ -958,6 +959,16 @@ class EngineArgs:
             "--tokenizer-obfuscation-artifacts",
             default=None,
             help="Path to the manually transferred mixed-tokenizer manifest.",
+        )
+        model_group.add_argument(
+            "--tokenizer-obfuscation-debug-ti-validation",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+            help=(
+                "Enable full TokenizerInfo diagnostics for an already enabled "
+                "mixed-tokenizer service. This runtime-only switch does not "
+                "enable obfuscation or change deployment artifact identity."
+            ),
         )
         model_group.add_argument(
             "--trust-remote-code", **model_kwargs["trust_remote_code"]
