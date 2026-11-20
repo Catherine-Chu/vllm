@@ -7,6 +7,7 @@ policy and artifact loading live in that package; this module only identifies
 configurations that need its startup hooks.
 """
 
+import os
 from importlib import import_module
 from typing import Any
 
@@ -53,3 +54,40 @@ def run_obfuscation_hook(name: str, args: Any, *extra: Any) -> None:
     if needs_obfuscation_hook(args):
         module = import_module("mixed_tokenizer.scheme31_startup")
         getattr(module, name)(args, *extra)
+
+
+def validate_structured_outputs_with_route(
+    params: Any,
+    model_config: Any,
+    structured_config: Any,
+    tokenizer: Any,
+    validate: Any,
+) -> None:
+    """Keep original-tokenizer validation native; bind mixed request routing."""
+    if getattr(tokenizer, "mixed", None) is not None and os.environ.get(
+        "MIXED_TOKENIZER_STARTUP_MANIFEST"
+    ):
+        module = import_module("mixed_tokenizer.scheme31_backend_route")
+        return module.validate_native_request(
+            params, model_config, structured_config, tokenizer, validate
+        )
+    return validate(model_config, structured_config, tokenizer)
+
+
+def prepare_structured_output_backend_route(
+    params: Any, structured_config: Any, tokenizer: Any, backend: Any
+) -> str | None:
+    if getattr(tokenizer, "mixed", None) is not None and os.environ.get(
+        "MIXED_TOKENIZER_STARTUP_MANIFEST"
+    ):
+        module = import_module("mixed_tokenizer.scheme31_backend_route")
+        return module.prepare_engine_backend(
+            params, structured_config, tokenizer, backend
+        )
+    return None
+
+
+def confirm_structured_output_backend_route(selected: str | None, backend: Any) -> None:
+    if selected is not None:
+        module = import_module("mixed_tokenizer.scheme31_backend_route")
+        module.confirm_engine_backend(selected, backend)
